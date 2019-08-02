@@ -3,8 +3,48 @@ import pandas as pd
 import numpy as np
 import load_md as foo
 import time
+from multiprocessing import Pool
 
-def dataset(date, codes=['000002']):
+def dataset(start=20180101, end=20181231, parallel_lines=12):
+    codes = pd.read_csv('./data/code.csv', index_col=0)
+    codes.loc[:, 'code'] = codes['code'].apply(lambda x: str(x).zfill(6))
+    codes = codes.code.values
+
+    target = read_target(start, end)
+    date = np.unique(target.date.values)
+    target.to_csv('./data/target.csv')
+
+    def task(nth, days):
+        print('Start process %d to read data.' % os.getpid())
+        data = pd.DataFrame()
+        for d in days:
+            df = data_processing(d, codes)
+            data = data.append(df)
+        print(data.shape)
+        data.to_csv('./data/raw_data/data_%02d.csv' % nth)
+
+    n = date.shape[0] // parallel_lines
+    p = Pool(parallel_lines)
+    for i in range(parallel_lines-1):
+        p.apply_async(task, args=(i, date[i * n:(i + 1) * n]))
+    p.apply_async(task, args=(11, date[(parallel_lines-1) * n:]))
+    p.close()
+    p.join()
+
+    def generate_dataset():
+        data = pd.DataFrame()
+        for j in range(0, parallel_lines):
+            df = pd.read_csv('./data/raw_data/data_%02d.csv' % j, index_col=0)
+            data = data.append(df)
+        print(data.shape)
+        data.to_csv('./data/data.csv')
+
+    generate_dataset()
+    print('Finished!')
+
+    return date.shape[0]
+
+def data_processing(date, codes=['000002']):
 
     keys = ['totbid', 'totoff', 'vol', 'last', 'low', 'high']
     keys.extend(['bid' + str(x) for x in range(1, 11)])
@@ -25,7 +65,6 @@ def dataset(date, codes=['000002']):
             continue
 
         temp['vol'] = temp['vol'].diff().fillna(0)
-        temp['vol'][temp['vol'] < 0] = 0
 
         temp['ask'] = temp[['ask' + str(x) for x in range(1, 11)]].mean(axis=1)
         temp['bid'] = temp[['bid' + str(x) for x in range(1, 11)]].mean(axis=1)
@@ -65,7 +104,7 @@ def read_data(date, codes=['000002'], keys=None):
 
 def get_data(d=0):
     data = pd.read_csv('./data/data.csv', index_col=0).groupby('code')
-    target = pd.read_csv('./data/target.csv').groupby('code')
+    target = pd.read_csv('./data/target.csv').groupby('code')[:186]
 
     codes = pd.read_csv('./data/code.csv', index_col=0).code.values
     x_train, y_train, x_test, y_test = [], [], [], []
@@ -73,13 +112,13 @@ def get_data(d=0):
     for c in codes:
         try:
 	        df = data.get_group(c)
-	        obj = target.get_group(c)[186:]
+	        obj = target.get_group(c)
         except KeyError:
             continue
 
         df.drop('code', axis=1, inplace=True)
 
-        if df.shape[0] < 49*189:
+        if df.shape[0] < 49*target.shape[0]:
             continue
 
         df = df.fillna(method='bfill').fillna(method='ffill')
@@ -105,30 +144,32 @@ def get_data(d=0):
     
     return x_train, y_train, x_test, y_test
 
-def read_target(year, month=1):
-    df = pd.read_csv('./data/raw_data/target.csv', index_col=0) # /home/sharedFold/fwd_return/return_1d.csv
+def read_target(start=20180101, end=20181231):
+    df = pd.read_csv('./data/raw_data/target.csv', index_col=0)
     df.columns = ['date', 'code', 'change']
 
     target = pd.DataFrame()
-    for day in range(19, 20):
-        target = target.append(df[df.date == year*10000+month*100+day])
+    target = target.append(df[(start <= df.date) & (df.date <= end)])
+    target['change'] = target['change'].apply(lambda x: x*100)
 
     return target
 
 if __name__ == '__main__':
-    codes = list(pd.read_csv('./data/code.csv', index_col=0).values)
-    print(len(codes))
+    start, end = 20180101, 20181231
+    l = dataset(start, end)
+    
+    data = pd.read_csv('./data/data.csv', index_col=0).groupby('code')
 
-    for i in (7, 8):
-        for j in range(1, 19):
-            if not os.path.exists(os.path.join('/data/stock/newSystemData/rawdata/universe/TOP2000', '2019%02d%02d' % (i, j))):
-                continue
+    codes = pd.read_csv('./data/code.csv', index_col=0).code.values
+    r_codes = []
+    for c in codes:
+        try:
+	        df = data.get_group(c)
+        except KeyError:
+            continue
 
-            with open(os.path.join('/data/stock/newSystemData/rawdata/universe/TOP2000', '20190102')) as f:
-                for c in f:
-                    codes.append(c.strip())
-
-    codes = sorted(codes)
-    df = pd.DataFrame({'code': codes})
-    print(df.shape)
-    df.to_csv('./data/code.csv')
+        if df.shape[0] < 49*l:
+            continue
+        r_codes.append(c)
+        
+    pd.DataFrame({'code': np.array(r_codes)}).to_csv('./data/r_code.csv')
