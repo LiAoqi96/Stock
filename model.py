@@ -38,13 +38,15 @@ class LSTM_Model:
         save_result(i, y_pred, r)
     
     def save_result(self, i, y_pred, r):
-        for j in range(3):
-            df = pd.DataFrame({'code': self.code,'predict': y_pred[j::3].flatten()})
+        d = y_pred.shape[0] / self.code.shape[0]
+
+        for j in range(d):
+            df = pd.DataFrame({'code': self.code,'predict': y_pred[j::d].flatten()})
             df.loc[:, 'code'] = df['code'].apply(lambda x: str(x).zfill(6))
             df = df.sort_values('predict', ascending=False)
             df.to_csv('./data/csv/%d.csv' % self.date[i + j], header=None, index=0)
 
-            self.p.append(r[j::3].corr().values[0, 1])
+            self.p.append(r[j::d].corr().values[0, 1])
 
         df = pd.DataFrame({'p': np.array(self.p)})
         df.to_csv('result.csv')

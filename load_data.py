@@ -5,6 +5,15 @@ import load_md as foo
 import time
 from multiprocessing import Pool
 
+def task(nth, days, codes):
+    print('Start process %d to read data.' % os.getpid())
+    data = pd.DataFrame()
+    for d in days:
+        df = data_processing(d, codes)
+        data = data.append(df)
+    print(data.shape)
+    data.to_csv('./data/temp/data_%02d.csv' % nth)
+
 def dataset(start=20180101, end=20181231, parallel_lines=12):
     codes = pd.read_csv('./data/code.csv', index_col=0)
     codes.loc[:, 'code'] = codes['code'].apply(lambda x: str(x).zfill(6))
@@ -14,27 +23,24 @@ def dataset(start=20180101, end=20181231, parallel_lines=12):
     date = np.unique(target.date.values)
     target.to_csv('./data/target.csv')
 
-    def task(nth, days):
-        print('Start process %d to read data.' % os.getpid())
-        data = pd.DataFrame()
-        for d in days:
-            df = data_processing(d, codes)
-            data = data.append(df)
-        print(data.shape)
-        data.to_csv('./data/raw_data/data_%02d.csv' % nth)
+    if date.shape[0] < parallel_lines:
+        parallel_lines = date.shape[0]
 
     n = date.shape[0] // parallel_lines
+    k = date.shape[0] % parallel_lines
     p = Pool(parallel_lines)
-    for i in range(parallel_lines-1):
-        p.apply_async(task, args=(i, date[i * n:(i + 1) * n]))
-    p.apply_async(task, args=(11, date[(parallel_lines-1) * n:]))
+    for i in range(k):
+        p.apply_async(task, args=(i, date[i * (n + 1):(i + 1) * (n + 1)], codes))
+    date2 = date[k*(n+1):]
+    for i in range(k, parallel_lines):
+        p.apply_async(task, args=(i, date2[(i-k)*n:(i-k+1)*n], codes))
     p.close()
     p.join()
 
     def generate_dataset():
         data = pd.DataFrame()
         for j in range(0, parallel_lines):
-            df = pd.read_csv('./data/raw_data/data_%02d.csv' % j, index_col=0)
+            df = pd.read_csv('./data/temp/data_%02d.csv' % j, index_col=0)
             data = data.append(df)
         print(data.shape)
         data.to_csv('./data/data.csv')
@@ -87,7 +93,7 @@ def data_processing(date, codes=['000002']):
 
 def read_data(date, codes=['000002'], keys=None):
     fp64_keys = keys[:3]
-    float_keys = keys[3:]
+    fp32_keys = keys[3:]
 
     t1 = time.time()
     data = pd.DataFrame()
@@ -95,7 +101,7 @@ def read_data(date, codes=['000002'], keys=None):
         df = foo.get_mem_data_by_tick(date, i, codes=codes, dtype='float64').astype('float32')
         data = pd.concat([data, df], axis=1)
 
-    for i in float_keys:
+    for i in fp32_keys:
         df = foo.get_mem_data_by_tick(date, i, codes=codes, dtype='float32')
         data = pd.concat([data, df], axis=1)
 
@@ -118,7 +124,7 @@ def get_data(d=0):
 
         df.drop('code', axis=1, inplace=True)
 
-        if df.shape[0] < 49*target.shape[0]:
+        if df.shape[0] < 49*obj.shape[0]:
             continue
 
         df = df.fillna(method='bfill').fillna(method='ffill')
@@ -155,9 +161,9 @@ def read_target(start=20180101, end=20181231):
     return target
 
 if __name__ == '__main__':
-    start, end = 20180101, 20181231
+    start, end = 20180101, 20180131
     l = dataset(start, end)
-    
+
     data = pd.read_csv('./data/data.csv', index_col=0).groupby('code')
 
     codes = pd.read_csv('./data/code.csv', index_col=0).code.values
