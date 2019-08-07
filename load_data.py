@@ -133,7 +133,9 @@ def get_data(i=0):
 
         df = df.fillna(method='bfill').fillna(method='ffill')
         df = df.apply(lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)))
-        for j in range(i+15, i+109):
+        
+        end = obj.shape[0] if i+109 > obj.shape[0] else i+109
+        for j in range(i+15, end):
             if j < i+105:
                 x_train.append(df[(j-15)*49:j*49].values)
                 y_train.append(obj['change'][j:j+1].values)

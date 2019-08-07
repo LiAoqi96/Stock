@@ -38,6 +38,8 @@ class LSTM_Model:
         r = pd.DataFrame({'change': y_test.flatten(), 'pred': y_pred.flatten()})
 
         self.save_result(i, y_pred, r)
+        if i % 12 == 0 and i > 0:
+            self.save_model()
     
     def save_result(self, i, y_pred, r):
         d = y_pred.shape[0] // self.code.shape[0]
