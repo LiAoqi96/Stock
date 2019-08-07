@@ -5,14 +5,14 @@ import load_md as foo
 import time
 from multiprocessing import Pool
 
-def task(nth, days, codes):
+def task(n, days, codes):
     print('Start process %d to read data.' % os.getpid())
     data = pd.DataFrame()
     for d in days:
         df = data_processing(d, codes)
         data = data.append(df)
     print(data.shape)
-    data.to_csv('./data/temp/data_%02d.csv' % nth)
+    data.to_csv('./data/temp/data_%02d.csv' % n)
 
 def dataset(start=20180101, end=20181231, parallel_lines=12):
     codes = pd.read_csv('./data/code.csv', index_col=0)
@@ -20,7 +20,7 @@ def dataset(start=20180101, end=20181231, parallel_lines=12):
     codes = codes.code.values
 
     target = read_target(start, end)
-    date = np.unique(target.date.values)
+    date = np.unique(target.date.values)[:-1]
     target.to_csv('./data/target.csv')
 
     if date.shape[0] < parallel_lines:
@@ -108,34 +108,36 @@ def read_data(date, codes=['000002'], keys=None):
     print('Finished %d, cost %.3fs' % (date, time.time() - t1))
     return data
 
-def get_data(d=0):
-    data = pd.read_csv('./data/data.csv', index_col=0).groupby('code')
-    target = pd.read_csv('./data/target.csv').groupby('code')[:186]
+def read_target(start=20180101, end=20181231):
+    df = pd.read_csv('./data/raw_data/target.csv', index_col=0)
+    df.columns = ['date', 'code', 'change']
 
-    codes = pd.read_csv('./data/code.csv', index_col=0).code.values
+    target = pd.DataFrame()
+    target = target.append(df[(start <= df.date) & (df.date <= end)])
+    target['change'] = target['change'].apply(lambda x: x*100)
+
+    return target
+
+def get_data(i=0):
+    data = pd.read_csv('./data/data.csv', index_col=0).groupby('code')
+    target = pd.read_csv('./data/target.csv').groupby('code')
+
+    codes = pd.read_csv('./data/r_code.csv', index_col=0).code.values
     x_train, y_train, x_test, y_test = [], [], [], []
     
     for c in codes:
-        try:
-	        df = data.get_group(c)
-	        obj = target.get_group(c)
-        except KeyError:
-            continue
+        df = data.get_group(c)
+        obj = target.get_group(c)
 
         df.drop('code', axis=1, inplace=True)
 
-        if df.shape[0] < 49*obj.shape[0]:
-            continue
-
         df = df.fillna(method='bfill').fillna(method='ffill')
         df = df.apply(lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)))
-        for j in range(d+15, d+109):
-            if j < d+105:
+        for j in range(i+15, i+109):
+            if j < i+105:
                 x_train.append(df[(j-15)*49:j*49].values)
                 y_train.append(obj['change'][j:j+1].values)
-            elif j == d+105:
-                pass
-            else:
+            elif j > i+105:
                 x_test.append(df[(j-15)*49:j*49].values)
                 y_test.append(obj['change'][j:j+1].values)
 
@@ -150,19 +152,9 @@ def get_data(d=0):
     
     return x_train, y_train, x_test, y_test
 
-def read_target(start=20180101, end=20181231):
-    df = pd.read_csv('./data/raw_data/target.csv', index_col=0)
-    df.columns = ['date', 'code', 'change']
-
-    target = pd.DataFrame()
-    target = target.append(df[(start <= df.date) & (df.date <= end)])
-    target['change'] = target['change'].apply(lambda x: x*100)
-
-    return target
-
 if __name__ == '__main__':
-    start, end = 20180101, 20180131
-    l = dataset(start, end)
+    start, end = 20190101, 20190731
+    l = dataset(start, end, parallel_lines=12)
 
     data = pd.read_csv('./data/data.csv', index_col=0).groupby('code')
 

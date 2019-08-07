@@ -13,7 +13,7 @@ ktf.set_session(session)
 
 model = LSTM_Model(gpus=4)
 
-for i in range(0, 76, 3):
+for i in range(0, model.rolling_count, 3):
     model.rolling(i)
 
 model.save_model()

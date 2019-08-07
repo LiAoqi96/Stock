@@ -23,11 +23,13 @@ class LSTM_Model:
         else:
             self.model = model
         self.model.compile(loss='mse', optimizer=Adam(1e-4))
-        self.p = []
+        self.p = {}
         self.code = pd.read_csv('./data/r_code.csv', index_col=0).code.values
         self.date = np.unique(pd.read_csv('./data/target.csv').date.values)[106:]
+        self.rolling_count = self.date.shape[0]
     
     def rolling(self, i=0, batch_size=2048):
+
         x_train, y_train, x_test, y_test = get_data(i)
         early_stopping = EarlyStopping('loss', 0.0001, 5)
         self.model.fit(x_train, y_train, batch_size=2048, epochs=100, callbacks=[early_stopping])
@@ -35,22 +37,21 @@ class LSTM_Model:
         y_pred = self.model.predict(x_test, batch_size=500)
         r = pd.DataFrame({'change': y_test.flatten(), 'pred': y_pred.flatten()})
 
-        save_result(i, y_pred, r)
+        self.save_result(i, y_pred, r)
     
     def save_result(self, i, y_pred, r):
-        d = y_pred.shape[0] / self.code.shape[0]
-
+        d = y_pred.shape[0] // self.code.shape[0]
         for j in range(d):
             df = pd.DataFrame({'code': self.code,'predict': y_pred[j::d].flatten()})
             df.loc[:, 'code'] = df['code'].apply(lambda x: str(x).zfill(6))
             df = df.sort_values('predict', ascending=False)
             df.to_csv('./data/csv/%d.csv' % self.date[i + j], header=None, index=0)
 
-            self.p.append(r[j::d].corr().values[0, 1])
+            self.p[self.date[i + j]] = r[j::d].corr().values[0, 1]
 
-        df = pd.DataFrame({'p': np.array(self.p)})
+        df = pd.DataFrame(self.p.values(), index=self.p.keys(), columns=['p'])
         df.to_csv('result.csv')
 
     def save_model(self):
-        self.model.save('./model/model.h5')
+        self.model.save('./saved_model/model.h5')
         
