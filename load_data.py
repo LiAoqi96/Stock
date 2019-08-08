@@ -14,13 +14,18 @@ def task(n, days, codes):
     print(data.shape)
     data.to_csv('./data/temp/data_%02d.csv' % n)
 
-def dataset(start=20180101, end=20181231, parallel_lines=12):
+def dataset(start=20180701, end=20181231, parallel_lines=12):
     codes = pd.read_csv('./data/code.csv', index_col=0)
     codes.loc[:, 'code'] = codes['code'].apply(lambda x: str(x).zfill(6))
     codes = codes.code.values
 
+    df = pd.read_csv('./data/raw_data/target.csv', index_col=0)
+    start = np.unique(df[df.date < start].date.values)[-106]
+
     target = read_target(start, end)
-    date = np.unique(target.date.values)[:-1]
+    date = np.unique(target.date.values)
+    pd.DataFrame({'date': date}).to_csv('./data/date.csv')
+    date = date[:-1]
     target.to_csv('./data/target.csv')
 
     if date.shape[0] < parallel_lines:
@@ -52,7 +57,7 @@ def dataset(start=20180101, end=20181231, parallel_lines=12):
 
 def data_processing(date, codes=['000002']):
 
-    keys = ['totbid', 'totoff', 'vol', 'last', 'low', 'high']
+    keys = ['totbid', 'totoff', 'vol', 'last', 'low', 'high', 'open']
     keys.extend(['bid' + str(x) for x in range(1, 11)])
     keys.extend(['ask' + str(x) for x in range(1, 11)])
     keys.extend(['bid_vol' + str(x) for x in range(1, 11)])
@@ -108,7 +113,7 @@ def read_data(date, codes=['000002'], keys=None):
     print('Finished %d, cost %.3fs' % (date, time.time() - t1))
     return data
 
-def read_target(start=20180101, end=20181231):
+def read_target(start=20180701, end=20181231):
     df = pd.read_csv('./data/raw_data/target.csv', index_col=0)
     df.columns = ['date', 'code', 'change']
 
@@ -134,8 +139,7 @@ def get_data(i=0):
         df = df.fillna(method='bfill').fillna(method='ffill')
         df = df.apply(lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)))
         
-        end = obj.shape[0] if i+109 > obj.shape[0] else i+109
-        for j in range(i+15, end):
+        for j in range(i+15, i+107):
             if j < i+105:
                 x_train.append(df[(j-15)*49:j*49].values)
                 y_train.append(obj['change'][j:j+1].values)
@@ -155,7 +159,7 @@ def get_data(i=0):
     return x_train, y_train, x_test, y_test
 
 if __name__ == '__main__':
-    start, end = 20190101, 20190731
+    start, end = 20190610, 20190731
     l = dataset(start, end, parallel_lines=12)
 
     data = pd.read_csv('./data/data.csv', index_col=0).groupby('code')
