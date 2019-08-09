@@ -30,4 +30,4 @@ High: 	最高价，取指数滑动平均值代替
 第四部分 实验结果
 
 每次rolling后保留网络参数，用到下一次训练中去，进行了28次rolling，其中后18次为5-6到7-18号的结果，相关系数平均值为0.085.
-![结果图片](https://github.com/LiAoqi96/Stock/edit/master/p.png)
+![结果图片](https://github.com/LiAoqi96/Stock/blob/master/p.png)
