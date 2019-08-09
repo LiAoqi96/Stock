@@ -30,6 +30,8 @@ High: 	最高价
 
 采用双层LSTM加全连接层的结构，模型如下：
 
+![模型结构](https://github.com/LiAoqi96/Stock/blob/master/model.png)
+
 第三部分模型训练
 
 选取前15天的数据作为输入，输入数据采用最大最小值归一化，每天收益率减去中证500收益率作为目标，收益率除以20加上0.5，训练收益率clip（0，1），优化函数选择Adam，学习率0.0001，batch_size为2048。Loss选用mse，训练采用early_stopping，当loss下降小于0.0001后的5个epoch停止训练
