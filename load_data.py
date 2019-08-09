@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 import numpy as np
-import load_md as foo
+import load_md as foo # 根据数据集编写, 用来读取数据的文件
 import time
 from multiprocessing import Pool
 
@@ -92,7 +92,6 @@ def data_processing(date, codes=['000002']):
             temp[i+'_mean'] = temp[i].ewm(span=4).mean()
             temp.drop(i, axis=1, inplace=True)
 
-        data = data.append(temp[::100])
     print('Finished %d data processing, cost %.3fs' % (date, time.time() - t1))
     return data
 
