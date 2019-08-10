@@ -136,7 +136,7 @@ def get_data(i=0):
         df.drop('code', axis=1, inplace=True)
 
         df = df.fillna(method='bfill').fillna(method='ffill')
-        df = df.apply(lambda x: (x - np.min(x)) / (np.max(x) - np.min(x)))
+        df = df.apply(lambda x: (x - np.min(x[:(i+106)*49])) / (np.max(x[:(i+106)*49]) - np.min(x[:(i+106)*49])))
         
         for j in range(i+15, i+107):
             if j < i+105:
